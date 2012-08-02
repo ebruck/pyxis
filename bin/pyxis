@@ -29,6 +29,9 @@ from pyxis import Interface
 
 usage = "Usage: %prog [OPTIONS] [STATION]"
 parser = OptionParser(usage=usage)
+parser.add_option("-g", "--gui", dest="gui",
+    action='store_true', default=False,
+    help="graphical interface")
 parser.add_option("-l", "--list", dest="list",
     action='store_true', default=False,
     help="list channels (Lots)")
@@ -49,4 +52,9 @@ parser.add_option("-o", "--output", dest="output",
 station = None
 if len(args) > 0:
     station = args[0]
-Interface(opts, station)
+    
+if not opts.gui:
+    Interface(opts, station)
+else:
+    from pyxis import AppIndicatorInterface
+    AppIndicatorInterface(opts, station).run()
