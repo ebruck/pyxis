@@ -149,6 +149,7 @@ class Config(object):
         self.config.set('mediaplayer', 'command', '/usr/bin/mplayer')
         self.config.set('mediaplayer', 'options', player_options)
         self.config.set('mediaplayer', 'record', '-ao pcm:file=')
+        self.config.set('mediaplayer', 'volume', '100')
         self.config.set('recordings', 'directory', os.environ['HOME'] + '/pyxis/')
         self.config.set('debug', 'debug', 'False')
         self.config.set('debug', 'directory', '~/pyxisdebug')

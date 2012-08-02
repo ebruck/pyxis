@@ -27,6 +27,9 @@ class Player(object):
 
     def playing(self):
         return self.streamHandler.playing();
+    
+    def volume(self, level):
+        return self.streamHandler.volume(level)
 
     def close(self):
         self.streamHandler.close()

@@ -98,6 +98,9 @@ class StreamHandler(object):
             self.proc.stdin.flush()
         except StandardError:
            return
+       
+    def volume(self, level):
+        self.cmd("volume " + str(level) + " 1")
 
     def close(self):
         """Cleanly closes any IPC resources to process"""

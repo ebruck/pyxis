@@ -30,11 +30,13 @@ import time
 
 
 # TODO: check station list downloader to see if we can preserve case
-name_cleanup = { 'trafficandnews'  : "Traffic and News",
-                 'howardstern'     : 'Howard Stern',
-                 'familyandhealth' : 'Family and Health',
-                 'hiphop'          : 'Hip Hop',
-                 'publicradio'     : 'Public Radio'}
+name_cleanup = { 'trafficandnews'     : "Traffic and News",
+                 'howardstern'        : 'Howard Stern',
+                 'familyandhealth'    : 'Family and Health',
+                 'hiphop'             : 'Hip Hop',
+                 'publicradio'        : 'Public Radio',
+                 'radioclassics'      : 'Radio Classics',
+                 "willie's roadhouse" : "Willie's Roadhouse"}
 
 
 class AppIndicatorInterface(object):
@@ -56,6 +58,11 @@ class AppIndicatorInterface(object):
 
         # TODO: read/save in config
         self.last_stream = self.sirius.getStreams()[0]['longName']
+        try:
+            self.volume = int(self.config.mediaplayer.volume)
+        except:
+            self.volume = 100
+            self.config.config.set('mediaplayer', 'volume', '100')  
 
         atexit.register(self.on_exit)
         self.notification = toBool(self.config.settings.notifications)
@@ -77,27 +84,28 @@ class AppIndicatorInterface(object):
 
         # volume
         menu.append(Gtk.SeparatorMenuItem())
-        state = Gtk.MenuItem('Volume: 100%')
-        state.set_sensitive(False)
-        menu.append(state)
+        self.volume_menuitem = Gtk.MenuItem('Volume: %d%%' % self.volume)
+        self.volume_menuitem.set_sensitive(False)
+        menu.append(self.volume_menuitem)
         menu.append(Gtk.SeparatorMenuItem())
 
         # streams
         genre_menuitems = {}
         for stream in self.sirius.getStreams():
             genre = stream['genreKey']
+            stream_long_name = stream['longName']
             if not genre_menuitems.has_key(genre):
                 genre_menu = Gtk.MenuItem(name_cleanup[genre]) if name_cleanup.has_key(genre) else Gtk.MenuItem(genre.title())
                 stream_menu = Gtk.Menu()
-                stream_item = Gtk.MenuItem(stream['longName'].title())
-                stream_item.connect('activate', self.on_play, stream['longName'])
+                stream_item = Gtk.MenuItem(name_cleanup[stream_long_name]) if name_cleanup.has_key(stream_long_name) else Gtk.MenuItem(stream_long_name.title())
+                stream_item.connect('activate', self.on_play, stream_long_name)
                 stream_menu.append(stream_item)
                 genre_menu.set_submenu(stream_menu)
                 menu.append(genre_menu)
                 genre_menuitems[genre] = stream_menu
             else:
-                stream_item = Gtk.MenuItem(stream['longName'].title())
-                stream_item.connect('activate', self.on_play, stream['longName'])
+                stream_item = Gtk.MenuItem(name_cleanup[stream_long_name]) if name_cleanup.has_key(stream_long_name) else Gtk.MenuItem(stream_long_name.title())
+                stream_item.connect('activate', self.on_play, stream_long_name)
                 genre_menuitems[genre].append(stream_item)
 
         # about
@@ -129,6 +137,8 @@ class AppIndicatorInterface(object):
             self.player.close()
         except:
             pass
+        
+        self.config.write()
 
 
     def on_quit(self, widget):
@@ -164,11 +174,11 @@ class AppIndicatorInterface(object):
         self.last_stream = stream
         self.update_state(stream)
         self.update_now_playing(self.sirius.nowPlaying())
-
+        
 
     def update_now_playing(self, playing):
         if not self.options.quiet:
-            print time.strftime('%H:%M' ) + ' - ' + playing['longName'] + ": " + playing['playing']
+            print time.strftime('%H:%M') + ' - ' + playing['longName'] + ": " + playing['playing']
         if self.notification:
             from gi.repository import Notify
             if Notify.init("Pyxis"):
@@ -189,15 +199,16 @@ class AppIndicatorInterface(object):
     
     
     def on_scroll_event(self, indicator, delta, direction):
-        # TODO: extend StreamHandler to issue volume commands to mplayer
-        if direction == 0:
-            print "volume up"
-        else:    
-            print "volume down"
+        # for now don't adjust volume while not playing as mplayer isn't running        
+        if self.player.playing():
+            self.volume = min(self.volume + 1, 100) if direction == 0 else max(self.volume - 1, 0) 
+            self.volume_menuitem.set_label('Volume: %d%%' % self.volume)
+            self.player.volume(self.volume)
+            self.config.config.set('mediaplayer', 'volume', str(self.volume))
 
 
     def on_now_playing_timer(self):
-        playing =  self.sirius.nowPlaying()
+        playing = self.sirius.nowPlaying()
         if playing['new']:
             self.update_now_playing(playing)
         return True
@@ -207,7 +218,7 @@ class AppIndicatorInterface(object):
         Gtk.main()
 
 
-if __name__== "__main__":
+if __name__ == "__main__":
     # {'record': False, 'setup': False, 'list': False, 'quiet': False, 'output': None}
     import optparse
     opts = optparse.Values()
