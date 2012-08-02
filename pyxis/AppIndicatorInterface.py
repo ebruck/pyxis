@@ -124,11 +124,13 @@ class AppIndicatorInterface(object):
 
         
     def update_state(self, stream):
+        stream_title = name_cleanup[stream] if name_cleanup.has_key(stream) else stream.title()
+        
         if not self.player.playing():
-            self.state_menuitem.set_label('Play "' + stream.title() + '"')
+            self.state_menuitem.set_label('Play "' + stream_title + '"')
             self.app_indicator.set_icon(os.path.dirname(__file__) + '/data/dog_gray_mono.svg')
         else:
-            self.state_menuitem.set_label('Stop "' + stream.title() + '"')
+            self.state_menuitem.set_label('Stop "' + stream_title + '"')
             self.app_indicator.set_icon(os.path.dirname(__file__) + '/data/dog_white_mono.svg')
 
 
