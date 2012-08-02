@@ -29,14 +29,12 @@ import atexit
 import time
 
 
-# TODO: check station list downloader to see if we can preserve case
-name_cleanup = { 'trafficandnews'     : "Traffic and News",
-                 'howardstern'        : 'Howard Stern',
-                 'familyandhealth'    : 'Family and Health',
-                 'hiphop'             : 'Hip Hop',
-                 'publicradio'        : 'Public Radio',
-                 'radioclassics'      : 'Radio Classics',
-                 "willie's roadhouse" : "Willie's Roadhouse"}
+# cleanup genre names
+genre_name_cleanup = { 'trafficandnews'  : "Traffic and News",
+                       'howardstern'     : 'Howard Stern',
+                       'familyandhealth' : 'Family and Health',
+                       'hiphop'          : 'Hip Hop',
+                       'publicradio'     : 'Public Radio' }
 
 
 class AppIndicatorInterface(object):
@@ -57,7 +55,7 @@ class AppIndicatorInterface(object):
         self.options = opts
 
         # TODO: read/save in config
-        self.last_stream = self.sirius.getStreams()[0]['longName']
+        self.last_stream = self.sirius.getStreams()[0]
         try:
             self.volume = int(self.config.mediaplayer.volume)
         except:
@@ -93,19 +91,18 @@ class AppIndicatorInterface(object):
         genre_menuitems = {}
         for stream in self.sirius.getStreams():
             genre = stream['genreKey']
-            stream_long_name = stream['longName']
             if not genre_menuitems.has_key(genre):
-                genre_menu = Gtk.MenuItem(name_cleanup[genre]) if name_cleanup.has_key(genre) else Gtk.MenuItem(genre.title())
+                genre_menu = Gtk.MenuItem(genre_name_cleanup[genre]) if genre_name_cleanup.has_key(genre) else Gtk.MenuItem(genre.title())
                 stream_menu = Gtk.Menu()
-                stream_item = Gtk.MenuItem(name_cleanup[stream_long_name]) if name_cleanup.has_key(stream_long_name) else Gtk.MenuItem(stream_long_name.title())
-                stream_item.connect('activate', self.on_play, stream_long_name)
+                stream_item = Gtk.MenuItem(stream['originalLongName'])
+                stream_item.connect('activate', self.on_play, stream)
                 stream_menu.append(stream_item)
                 genre_menu.set_submenu(stream_menu)
                 menu.append(genre_menu)
                 genre_menuitems[genre] = stream_menu
             else:
-                stream_item = Gtk.MenuItem(name_cleanup[stream_long_name]) if name_cleanup.has_key(stream_long_name) else Gtk.MenuItem(stream_long_name.title())
-                stream_item.connect('activate', self.on_play, stream_long_name)
+                stream_item = Gtk.MenuItem(stream['originalLongName'])
+                stream_item.connect('activate', self.on_play, stream)
                 genre_menuitems[genre].append(stream_item)
 
         # about
@@ -124,13 +121,11 @@ class AppIndicatorInterface(object):
 
         
     def update_state(self, stream):
-        stream_title = name_cleanup[stream] if name_cleanup.has_key(stream) else stream.title()
-        
         if not self.player.playing():
-            self.state_menuitem.set_label('Play "' + stream_title + '"')
+            self.state_menuitem.set_label('Play "' + stream['originalLongName'] + '"')
             self.app_indicator.set_icon(os.path.dirname(__file__) + '/data/dog_gray_mono.svg')
         else:
-            self.state_menuitem.set_label('Stop "' + stream_title + '"')
+            self.state_menuitem.set_label('Stop "' + stream['originalLongName'] + '"')
             self.app_indicator.set_icon(os.path.dirname(__file__) + '/data/dog_white_mono.svg')
 
 
@@ -161,9 +156,9 @@ class AppIndicatorInterface(object):
     def on_play(self, widget, stream):
         try:
             log('Play %s' % stream)
-            self.sirius.setStreamByLongName(stream)
+            self.sirius.setStreamByLongName(stream['longName'])
         except InvalidStream:
-            print "Invalid station name. Type 'list' to see available station names"
+            #print "Invalid station name. Type 'list' to see available station names"
             return
 
         self.stop()
@@ -172,20 +167,20 @@ class AppIndicatorInterface(object):
             self.update_timer_id = GObject.timeout_add(30000, self.on_now_playing_timer)
 
         url = self.sirius.getAsxURL()
-        self.player.play(url, stream)
+        self.player.play(url, stream['longName'])
         self.last_stream = stream
         self.update_state(stream)
-        self.update_now_playing(self.sirius.nowPlaying())
-        
+        self.update_now_playing(self.sirius.nowPlaying(), stream)
 
-    def update_now_playing(self, playing):
+
+    def update_now_playing(self, playing, stream):
         if not self.options.quiet:
             print time.strftime('%H:%M') + ' - ' + playing['longName'] + ": " + playing['playing']
         if self.notification:
             from gi.repository import Notify
             if Notify.init("Pyxis"):
                 icon = os.path.dirname(__file__) + '/data/dog_white_outline.svg'
-                n = Notify.Notification.new("SiriusXM", playing['longName'] + ": " + playing['playing'], icon)
+                n = Notify.Notification.new("SiriusXM", stream['originalLongName'] + ": " + playing['playing'], icon)
                 n.show()
 
 
@@ -194,11 +189,7 @@ class AppIndicatorInterface(object):
             self.player.close()
         except:
             pass
-        
-    
-    def on_about(self, widget):
-        pass
-    
+
     
     def on_scroll_event(self, indicator, delta, direction):
         # for now don't adjust volume while not playing as mplayer isn't running        
@@ -214,6 +205,10 @@ class AppIndicatorInterface(object):
         if playing['new']:
             self.update_now_playing(playing)
         return True
+
+
+    def on_about(self, widget):
+        pass
 
 
     def run(self):

@@ -122,7 +122,8 @@ class ProviderUSA(object):
                     'genreKey':  chunks[1],
                     'categoryKey': chunks[0],
                     'selectedStream': catstrm['value'],
-                    'longName': catstrm.contents[0].split(';')[-1].lower()
+                    'longName': catstrm.contents[0].split(';')[-1].lower(),
+                    'originalLongName' : catstrm.contents[0].split(';')[-1]
                     }
                 allstreams.append(stream)
         if len(allstreams) < 5:
