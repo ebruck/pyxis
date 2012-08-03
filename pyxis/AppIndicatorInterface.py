@@ -18,6 +18,9 @@
 # Boston, MA  02110-1301, USA.
 
 import os
+import dbus.mainloop.glib
+import atexit
+import time
 from gi.repository import Gtk, GObject
 from gi.repository import AppIndicator3 as appindicator
 from Config import Config, toBool
@@ -25,8 +28,6 @@ from Debug import cleanDebug, log
 from Exceptions import InvalidStream
 from Player import Player
 from Sirius import Sirius
-import atexit
-import time
 
 
 # cleanup genre names
@@ -66,6 +67,13 @@ class AppIndicatorInterface(object):
         self.notification = toBool(self.config.settings.notifications)
         self.update_timer_id = None
         self.build_menu()
+
+        # media keys
+        dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+        bus = dbus.Bus(dbus.Bus.TYPE_SESSION)
+        bus_object = bus.get_object('org.gnome.SettingsDaemon', '/org/gnome/SettingsDaemon/MediaKeys')
+        bus_object.GrabMediaPlayerKeys("Pyxis", 0, dbus_interface='org.gnome.SettingsDaemon.MediaKeys')
+        bus_object.connect_to_signal('MediaPlayerKeyPressed', self.on_media_key)
 
         if station != None:
             self.on_play(None, station)
@@ -151,6 +159,14 @@ class AppIndicatorInterface(object):
             self.stop()
 
         self.update_state(self.last_stream)
+
+
+    def on_media_key(self, *mmkeys):
+        for key in mmkeys:
+            if key == 'Play':
+                self.on_start_stop(None)
+            elif key == 'Stop':
+                self.stop()
 
 
     def on_play(self, widget, stream):
