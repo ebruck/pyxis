@@ -8,6 +8,5 @@ from Sirius import *
 from StreamHandler import *
 from Player import *
 from Interface import *
-from AppIndicatorInterface import *
 from ProviderUSA import *
 from ProviderCanada import *

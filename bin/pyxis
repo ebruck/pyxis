@@ -56,5 +56,8 @@ if len(args) > 0:
 if not opts.gui:
     Interface(opts, station)
 else:
-    from pyxis import AppIndicatorInterface
-    AppIndicatorInterface(opts, station).run()
+    if opts.record:
+        print "Recording and GUI not supported."
+    else:
+        from pyxis import AppIndicatorInterface
+        AppIndicatorInterface.AppIndicatorInterface(opts, station).run()

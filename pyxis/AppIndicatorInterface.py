@@ -20,12 +20,10 @@
 import os
 import dbus.mainloop.glib
 import atexit
-import time
-from gi.repository import Gtk, GObject
+from gi.repository import Gtk, GObject, Notify
 from gi.repository import AppIndicator3 as appindicator
 from Config import Config, toBool
 from Debug import cleanDebug, log
-from Exceptions import InvalidStream
 from Player import Player
 from Sirius import Sirius
 
@@ -55,14 +53,7 @@ class AppIndicatorInterface(object):
         self.player = Player(opts)
         self.options = opts
 
-        # TODO: read/save in config
-        self.last_stream = self.sirius.getStreams()[0]
-        try:
-            self.volume = int(self.config.mediaplayer.volume)
-        except:
-            self.volume = 100
-            self.config.config.set('mediaplayer', 'volume', '100')  
-
+        self.load_settings()            
         atexit.register(self.on_exit)
         self.notification = toBool(self.config.settings.notifications)
         self.update_timer_id = None
@@ -77,7 +68,30 @@ class AppIndicatorInterface(object):
 
         if station != None:
             self.on_play(None, station)
+            
 
+    def load_settings(self):
+        try:
+            self.volume = int(self.config.mediaplayer.volume)
+        except:
+            self.volume = 100
+            self.config.config.set('mediaplayer', 'volume', '100')  
+
+        self.last_stream = None
+        try:
+            last_stream = self.config.mediaplayer.last_stream
+            
+            for stream in self.sirius.getStreams():
+                if stream['originalLongName'] == last_stream:
+                    self.last_stream = stream
+                    break
+        except:
+            pass
+        
+        if self.last_stream == None:
+            self.last_stream = self.sirius.getStreams()[0]
+            self.config.config.set('mediaplayer', 'last_stream', self.last_stream['originalLongName'])
+            
 
     def build_menu(self):
         menu = Gtk.Menu()
@@ -173,8 +187,11 @@ class AppIndicatorInterface(object):
         try:
             log('Play %s' % stream)
             self.sirius.setStreamByLongName(stream['longName'])
-        except InvalidStream:
-            #print "Invalid station name. Type 'list' to see available station names"
+        except:
+            if Notify.init("Pyxis"):
+                icon = os.path.dirname(__file__) + '/data/dog_white_outline.svg'
+                n = Notify.Notification.new("SiriusXM", "Invalid station name.", icon)
+                n.show()
             return
 
         self.stop()
@@ -182,18 +199,15 @@ class AppIndicatorInterface(object):
         if self.update_timer_id == None:
             self.update_timer_id = GObject.timeout_add(30000, self.on_now_playing_timer)
 
-        url = self.sirius.getAsxURL()
-        self.player.play(url, stream['longName'])
+        self.player.play(self.sirius.getAsxURL(), stream['longName'])
         self.last_stream = stream
+        self.config.config.set('mediaplayer', 'last_stream', self.last_stream['originalLongName'])
         self.update_state(stream)
         self.update_now_playing(self.sirius.nowPlaying(), stream)
 
 
     def update_now_playing(self, playing, stream):
-        if not self.options.quiet:
-            print time.strftime('%H:%M') + ' - ' + playing['longName'] + ": " + playing['playing']
         if self.notification:
-            from gi.repository import Notify
             if Notify.init("Pyxis"):
                 icon = os.path.dirname(__file__) + '/data/dog_white_outline.svg'
                 n = Notify.Notification.new("SiriusXM", stream['originalLongName'] + ": " + playing['playing'], icon)
