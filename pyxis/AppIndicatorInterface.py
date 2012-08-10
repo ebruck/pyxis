@@ -20,6 +20,7 @@
 import os
 import dbus.mainloop.glib
 import atexit
+import time
 from gi.repository import Gtk, GObject, Notify
 from gi.repository import AppIndicator3 as appindicator
 from Config import Config, toBool
@@ -222,15 +223,19 @@ class AppIndicatorInterface(object):
 
     
     def on_scroll_event(self, indicator, delta, direction):
-        # for now don't adjust volume while not playing as mplayer isn't running        
         if self.player.playing():
             self.volume = min(self.volume + 1, 100) if direction == 0 else max(self.volume - 1, 0) 
             self.volume_menuitem.set_label('Volume: %d%%' % self.volume)
             self.player.volume(self.volume)
             self.config.config.set('mediaplayer', 'volume', str(self.volume))
+            time.sleep(0.01)
 
 
     def on_now_playing_timer(self):
+        if not self.player.playing():
+            log('Restarting stream %s' % self.last_stream)
+            self.player.play(self.sirius.getAsxURL(), self.last_stream)
+        
         playing = self.sirius.nowPlaying()
         if playing['new']:
             self.update_now_playing(playing)
@@ -246,7 +251,6 @@ class AppIndicatorInterface(object):
 
 
 if __name__ == "__main__":
-    # {'record': False, 'setup': False, 'list': False, 'quiet': False, 'output': None}
     import optparse
     opts = optparse.Values()
     opts.record = False
