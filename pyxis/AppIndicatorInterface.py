@@ -20,7 +20,6 @@
 import os
 import dbus.mainloop.glib
 import atexit
-import time
 from gi.repository import Gtk, GObject, Notify
 from gi.repository import AppIndicator3 as appindicator
 from Config import Config, toBool
@@ -57,7 +56,8 @@ class AppIndicatorInterface(object):
         self.load_settings()            
         atexit.register(self.on_exit)
         self.notification = toBool(self.config.settings.notifications)
-        self.update_timer_id = None
+        self.now_playing_timer_id = None
+        self.volume_timer_id = None
         self.build_menu()
 
         # media keys
@@ -169,8 +169,10 @@ class AppIndicatorInterface(object):
         if not self.player.playing():
             self.on_play(None, self.last_stream)
         else:
-            GObject.source_remove(self.update_timer_id)
-            self.update_timer_id = None
+            GObject.source_remove(self.volume_timer_id)
+            GObject.source_remove(self.now_playing_timer_id)
+            self.now_playing_timer_id = None
+            self.volume_timer_id = None
             self.stop()
 
         self.update_state(self.last_stream)
@@ -197,17 +199,19 @@ class AppIndicatorInterface(object):
 
         self.stop()
 
-        if self.update_timer_id == None:
-            self.update_timer_id = GObject.timeout_add(30000, self.on_now_playing_timer)
+        if self.now_playing_timer_id == None:
+            self.now_playing_timer_id = GObject.timeout_add(30000, self.on_now_playing_timer)
+        if self.volume_timer_id == None:
+            self.volume_timer_id = GObject.timeout_add(2000, self.on_volume_timer)
 
         self.player.play(self.sirius.getAsxURL(), stream['longName'])
         self.last_stream = stream
         self.config.config.set('mediaplayer', 'last_stream', self.last_stream['originalLongName'])
         self.update_state(stream)
-        self.update_now_playing(self.sirius.nowPlaying(), stream)
+        self.display_now_playing(self.sirius.nowPlaying(), stream)
 
 
-    def update_now_playing(self, playing, stream):
+    def display_now_playing(self, playing, stream):
         if self.notification:
             if Notify.init("Pyxis"):
                 icon = os.path.dirname(__file__) + '/data/dog_white_outline.svg'
@@ -228,9 +232,15 @@ class AppIndicatorInterface(object):
             self.volume_menuitem.set_label('Volume: %d%%' % self.volume)
             self.player.volume(self.volume)
             self.config.config.set('mediaplayer', 'volume', str(self.volume))
-            time.sleep(0.01)
+            
 
-
+    def on_volume_timer(self):
+        # make sure volume kept up with scroll events
+        if self.player.playing():
+            self.player.volume(self.volume)
+        return True
+            
+            
     def on_now_playing_timer(self):
         if not self.player.playing():
             log('Restarting stream %s' % self.last_stream)
@@ -238,7 +248,7 @@ class AppIndicatorInterface(object):
         
         playing = self.sirius.nowPlaying()
         if playing['new']:
-            self.update_now_playing(playing)
+            self.display_now_playing(playing)
         return True
 
 
